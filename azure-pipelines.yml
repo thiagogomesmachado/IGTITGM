@@ -7,68 +7,67 @@ trigger:
 - master
 
 pool:
-  vmImage: 'VS2017-Win2016'
+  vmImage: 'windows-latest'
 
 variables:
   solution: '**/*.sln'
   buildPlatform: 'Any CPU'
-  buildConfiguration: 'Debug'
+  buildConfiguration: 'Release'
 
 steps:
 
-- task: DotNetCoreInstaller@0
-  displayName: 'Use .NET Core sdk 2.1.5'
-  inputs:
-    version: 2.1.403
+# Command line
+# Run a command line script using Bash on Linux and macOS and cmd.exe on Windows
 
-- task: DotNetCoreCLI@2
-  displayName: Restore
+- task: CmdLine@2
   inputs:
-    command: restore
-    projects: '**/*.sln'
+    script: 'mkdir d:\a\1\MobEAD' 
+    #workingDirectory: # Optional
+    #failOnStderr: false # Optional
+
+- task: NuGetToolInstaller@1
+
+- task: NuGetCommand@2
+  inputs:
+    restoreSolution: '$(solution)'
+
 
 - task: SonarCloudPrepare@1
+  displayName: 'Prepare analysis on SonarCloud'
   inputs:
-    SonarCloud: 'SONAR'
-    organization: 'promove'
-    scannerMode: 'CLI'
-    configMode: 'manual'
+    SonarCloud: SONAR
+    organization: promove
+    scannerMode: CLI
+    configMode: manual
     cliProjectKey: analia
     cliProjectName: Analia
     cliSources: '$(System.DefaultWorkingDirectory)'
-  continueOnError: true
 
-- task: DotNetCoreCLI@2
-  displayName: Build
+- task: VSBuild@1
   inputs:
-    projects: '**/*.sln'
-    arguments: '--configuration $(BuildConfiguration)'
+    solution: '$(solution)'
+    msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:DeployIisAppPath="Default Web Site" /p:DesktopBuildPackageLocation="d:\a\1\mobEAD"'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
 
-- task: DotNetCoreCLI@2
-  displayName: Test
+
+- task: VSTest@2
   inputs:
-    command: test
-    projects: '**/*test**.js'
-    arguments: '--configuration $(BuildConfiguration)'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+    testAssemblyVer2: '$(Build.SourcesDirectory)/test**.js'
 
 - task: SonarCloudAnalyze@1
-  displayName: 'Run Code Analysis'
-  continueOnError: true
-
 - task: SonarCloudPublish@1
-  displayName: 'Publish Quality Gate Result'
-  continueOnError: true
-
-- task: DotNetCoreCLI@2
-  displayName: Publish
   inputs:
-    command: publish
-    publishWebProjects: false
-    projects: '**/*.sln'
-    arguments: '--configuration $(BuildConfiguration) --output "$(build.artifactstagingdirectory)"'
-    zipAfterPublish: True
+    pollingTimeoutSec: '300'
+ 
+- task: CopyFiles@2
+  inputs:
+    contents: '**/*.*'
+    targetFolder: $(build.artifactStagingDirectory)
 
 - task: PublishBuildArtifacts@1
-  displayName: 'Publish Artifact'
   inputs:
-    PathtoPublish: '$(build.artifactstagingdirectory)'
+    artifactName: 'MobEAD'
+    pathToPublish: 'd:\a\1\a'

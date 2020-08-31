@@ -1,34 +1,74 @@
-# ASP.NET
-# Build and test ASP.NET projects.
-# Add steps that publish symbols, save build artifacts, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/apps/aspnet/build-aspnet-4
+# ASP.NET Core (.NET Framework)
+# Build and test ASP.NET Core projects targeting the full .NET Framework.
+# Add steps that publish symbols, save build artifacts, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
 
 trigger:
 - master
 
 pool:
-  vmImage: 'windows-latest'
+  vmImage: 'VS2017-Win2016'
 
 variables:
   solution: '**/*.sln'
   buildPlatform: 'Any CPU'
-  buildConfiguration: 'Release'
+  buildConfiguration: 'Debug'
 
 steps:
-- task: NuGetToolInstaller@1
 
-- task: NuGetCommand@2
+- task: DotNetCoreInstaller@0
+  displayName: 'Use .NET Core sdk 2.1.5'
   inputs:
-    restoreSolution: '$(solution)'
+    version: 2.1.403
 
-- task: VSBuild@1
+- task: DotNetCoreCLI@2
+  displayName: Restore
   inputs:
-    solution: '$(solution)'
-    msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactStagingDirectory)"'
-    platform: '$(buildPlatform)'
-    configuration: '$(buildConfiguration)'
+    command: restore
+    projects: '**/*.sln'
 
-- task: VSTest@2
+- task: SonarCloudPrepare@1
   inputs:
-    platform: '$(buildPlatform)'
-    configuration: '$(buildConfiguration)'
+    SonarCloud: 'SONAR'
+    organization: 'promove'
+    scannerMode: 'CLI'
+    configMode: 'manual'
+    cliProjectKey: analia
+    cliProjectName: Analia
+    cliSources: '$(System.DefaultWorkingDirectory)'
+  continueOnError: true
+
+- task: DotNetCoreCLI@2
+  displayName: Build
+  inputs:
+    projects: '**/*.sln'
+    arguments: '--configuration $(BuildConfiguration)'
+
+- task: DotNetCoreCLI@2
+  displayName: Test
+  inputs:
+    command: test
+    projects: '**/*test**.js'
+    arguments: '--configuration $(BuildConfiguration)'
+
+- task: SonarCloudAnalyze@1
+  displayName: 'Run Code Analysis'
+  continueOnError: true
+
+- task: SonarCloudPublish@1
+  displayName: 'Publish Quality Gate Result'
+  continueOnError: true
+
+- task: DotNetCoreCLI@2
+  displayName: Publish
+  inputs:
+    command: publish
+    publishWebProjects: false
+    projects: '**/*.sln'
+    arguments: '--configuration $(BuildConfiguration) --output "$(build.artifactstagingdirectory)"'
+    zipAfterPublish: True
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Artifact'
+  inputs:
+    PathtoPublish: '$(build.artifactstagingdirectory)'
